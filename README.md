@@ -16,5 +16,5 @@ For now, the extension has only been tested in Google Chrome.
 ## TODO
 * Fetch latest posts of remote profiles
 * Fetch replies to posts of remote profiles
-* Redirect user from remote instnces to their preferred instance
+* Redirect user to their preferred instance when visiting remote instances
 * Support for multiple instances - automatically detect logged in user
