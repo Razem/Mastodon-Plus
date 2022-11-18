@@ -35,12 +35,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         let res = await fetch(message.url, {
           method: 'head',
           headers: {
-            accept: JSON_MIME_TYPES.join(', '),
+            accept: message.json ? JSON_MIME_TYPES.join(', ') : null,
             authorization: message.token ? ('bearer ' + message.token) : null,
           },
         })
         sendResponse({
           data: {
+            url: res.url,
             status: res.status || 405,
             contentType: res.headers.get('content-type') || '',
           },

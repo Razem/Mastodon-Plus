@@ -11,28 +11,17 @@ async function fetchRemote(url, token) {
   }
   return data
 }
-async function fetchRemoteHead(url, token) {
+async function fetchRemoteHead(url, token, json = true) {
   let { data, error } = await chrome.runtime.sendMessage({
     action: 'fetch-head',
     url,
     token,
+    json,
   })
   if (error) {
     throw error
   }
   return data
-}
-function isHeadValid({ status, contentType }) {
-  return (
-    // Correct JSON response
-    (
-      status >= 200
-      && status < 300
-      && JSON_MIME_TYPES.some(type => contentType.includes(type))
-    )
-    // Method HEAD not supported
-    || status === 405
-  )
 }
 async function fetchLocal(url, token) {
   let res = await fetch(url, {
@@ -49,6 +38,32 @@ async function fetchLocal(url, token) {
   else {
     throw data
   }
+}
+async function fetchLocalHead(url, token, json = true) {
+  let res = await fetch(url, {
+    method: 'head',
+    headers: {
+      accept: json ? JSON_MIME_TYPES.join(', ') : null,
+      authorization: token ? ('bearer ' + token) : null,
+    },
+  })
+  return {
+    url: res.url,
+    status: res.status || 405,
+    contentType: res.headers.get('content-type') || '',
+  }
+}
+function isHeadValid({ status, contentType }) {
+  return (
+    // Correct JSON response
+    (
+      status >= 200
+      && status < 300
+      && JSON_MIME_TYPES.some(type => contentType.includes(type))
+    )
+    // Method HEAD not supported
+    || status === 405
+  )
 }
 
 // Get stored Mastodon handle and validate it
@@ -107,7 +122,7 @@ function importStyles() {
 
   // Inject style
   let css = `
-    a[data-mastodon-plus-toot="true"] {
+    a[data-mastodon-plus-toot="true"][data-mastodon-plus-content] {
       display: block;
       border: 1px solid ${borderColor};
       border-radius: 4px;
@@ -116,17 +131,17 @@ function importStyles() {
       font-weight: bold;
       color: ${linkColor} !important;
     }
-    .status-direct a[data-mastodon-plus-toot="true"] {
+    .status-direct a[data-mastodon-plus-toot="true"][data-mastodon-plus-content] {
       border-color: ${alternativeBorderColor};
     }
-    a[data-mastodon-plus-toot="true"]:hover {
+    a[data-mastodon-plus-toot="true"][data-mastodon-plus-content]:hover {
       border-color: ${linkColor} !important;
       text-decoration: none;
     }
     a[data-mastodon-plus-toot="true"]::before {
       content: '📜 ';
     }
-    a[data-mastodon-plus-toot="true"]::after {
+    a[data-mastodon-plus-toot="true"][data-mastodon-plus-content]::after {
       content: ': ' attr(data-mastodon-plus-content);
       font-weight: normal;
     }
@@ -150,35 +165,40 @@ function replaceLinks() {
   for (let link of links) {
     link.dataset.mastodonPlusChecked = 'true'
     ;(async () => {
+      let href = link.href
+
       // Check if the node supports the ActivityPub protocol
-      let url = new URL(link.href)
-      let nodeInfoSchemaHead = await fetchRemoteHead(url.origin + '/.well-known/nodeinfo')
-      if (!isHeadValid(nodeInfoSchemaHead)) {
-        return
-      }
+      let url = new URL(href)
       let nodeInfoSchema = await fetchRemote(url.origin + '/.well-known/nodeinfo')
       let nodeInfo = await fetchRemote(nodeInfoSchema.links[0].href)
       if (!nodeInfo.protocols.includes('activitypub')) {
         return
       }
 
-      // Check if the URL contains a valid ActivityPub post
-      let head = await fetchRemoteHead(link.href)
-      if (!isHeadValid(head)) {
-        return
-      }
-      let data = await fetchRemote(link.href)
-      if (
-        !data['@context'].includes('https://www.w3.org/ns/activitystreams')
-        || !['Note', 'Question'].includes(data.type)
-      ) {
+      // Validate local link
+      let localLink = getLocalLink(href)
+      let localHead = await fetchLocalHead(localLink, undefined, false)
+      if (localHead.url === localLink) {
         return
       }
 
       // Update attributes and replace href with local toot URL
       link.dataset.mastodonPlusToot = 'true'
       link.target = '_self'
-      link.href = getLocalLink(data.url || link.href)
+      link.href = localHead.url
+
+      // Check if the URL contains a valid ActivityPub post
+      let head = await fetchRemoteHead(href)
+      if (!isHeadValid(head)) {
+        return
+      }
+      let data = await fetchRemote(href)
+      if (
+        !data['@context'].includes('https://www.w3.org/ns/activitystreams')
+        || !['Note', 'Question'].includes(data.type)
+      ) {
+        return
+      }
 
       // Add toot content
       let content = ''
