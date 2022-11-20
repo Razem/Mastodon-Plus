@@ -2,6 +2,16 @@ chrome.runtime.onInstalled.addListener(() => {
 })
 
 const JSON_MIME_TYPES = ['application/activity+json', 'application/json']
+function getHeaders(token, json = true) {
+  let headers = {}
+  if (token) {
+    headers.authorization = 'bearer ' + token
+  }
+  if (json) {
+    headers.accept = JSON_MIME_TYPES.join(', ')
+  }
+  return headers
+}
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   // Handle external cross-origin resource fetching
@@ -10,10 +20,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       try {
         let res = await fetch(message.url, {
           method: 'get',
-          headers: {
-            accept: JSON_MIME_TYPES.join(', '),
-            authorization: message.token ? ('bearer ' + message.token) : null,
-          },
+          headers: getHeaders(message.token),
         })
         let data = await res.json()
         if (res.status >= 200 && res.status < 300) {
@@ -34,10 +41,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       try {
         let res = await fetch(message.url, {
           method: 'head',
-          headers: {
-            accept: message.json ? JSON_MIME_TYPES.join(', ') : null,
-            authorization: message.token ? ('bearer ' + message.token) : null,
-          },
+          headers: getHeaders(message.token, message.json),
         })
         sendResponse({
           data: {

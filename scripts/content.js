@@ -1,5 +1,15 @@
 // Fetch remot and local resources
 const JSON_MIME_TYPES = ['application/activity+json', 'application/json']
+function getHeaders(token, json = true) {
+  let headers = {}
+  if (token) {
+    headers.authorization = 'bearer ' + token
+  }
+  if (json) {
+    headers.accept = JSON_MIME_TYPES.join(', ')
+  }
+  return headers
+}
 async function fetchRemote(url, token) {
   let { data, error } = await chrome.runtime.sendMessage({
     action: 'fetch',
@@ -26,10 +36,7 @@ async function fetchRemoteHead(url, token, json = true) {
 async function fetchLocal(url, token) {
   let res = await fetch(url, {
     method: 'get',
-    headers: {
-      accept: JSON_MIME_TYPES.join(', '),
-      authorization: token ? ('bearer ' + token) : null,
-    },
+    headers: getHeaders(token),
   })
   let data = await res.json()
   if (res.status >= 200 && res.status < 300) {
@@ -42,10 +49,7 @@ async function fetchLocal(url, token) {
 async function fetchLocalHead(url, token, json = true) {
   let res = await fetch(url, {
     method: 'head',
-    headers: {
-      accept: json ? JSON_MIME_TYPES.join(', ') : null,
-      authorization: token ? ('bearer ' + token) : null,
-    },
+    headers: getHeaders(token, json),
   })
   return {
     url: res.url,
@@ -122,6 +126,9 @@ function importStyles() {
 
   // Inject style
   let css = `
+    a[data-mastodon-plus-toot="true"] {
+      color: ${linkColor} !important;
+    }
     a[data-mastodon-plus-toot="true"][data-mastodon-plus-content] {
       display: block;
       border: 1px solid ${borderColor};
@@ -129,7 +136,6 @@ function importStyles() {
       padding: 8px;
       margin: 8px 0;
       font-weight: bold;
-      color: ${linkColor} !important;
     }
     .status-direct a[data-mastodon-plus-toot="true"][data-mastodon-plus-content] {
       border-color: ${alternativeBorderColor};
